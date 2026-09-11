@@ -1,52 +1,67 @@
+# Which Kubernetes API version this object uses
 apiVersion: apps/v1
+# A Deployment keeps N copies (Pods) of your app running and restarts them if they fail
 kind: Deployment
 metadata:
+  # Name of this Deployment (used in kubectl get deploy demo)
   name: demo
+  # Labels are key/value tags for organizing and selecting objects
   labels:
     app: demo
 spec:
+  # How many Pods (app instances) to run — one per app worker node in this demo
   replicas: 5
+  # Tells the Deployment which Pods it owns (must match the Pod template labels below)
   selector:
     matchLabels:
       app: demo
+  # Blueprint for each Pod the Deployment creates
   template:
     metadata:
+      # Labels attached to every Pod created from this template
       labels:
         app: demo
     spec:
+      # Only schedule these Pods on nodes that have label role=app
       nodeSelector:
         role: app
+      # Soft rule: prefer spreading Pods across different nodes (not a hard requirement)
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
-            - weight: 100
+            - weight: 100 # Higher weight = stronger preference
               podAffinityTerm:
                 labelSelector:
                   matchLabels:
-                    app: demo
-                topologyKey: kubernetes.io/hostname
+                    app: demo # Prefer not to co-locate with other demo Pods
+                topologyKey: kubernetes.io/hostname # "Different node" = different hostname
       containers:
         - name: demo
+          # Container image built locally and loaded into kind
           image: demo:local
+          # Never pull from a registry — use the image already on the node
           imagePullPolicy: Never
           ports:
-            - name: http
-              containerPort: 8080
+            - name: http # Named port referenced by probes and the Service
+              containerPort: 8080 # Port the Spring Boot app listens on inside the container
+          # Readiness: traffic only goes to the Pod after this check succeeds
           readinessProbe:
             httpGet:
               path: /actuator/health
               port: http
-            initialDelaySeconds: 10
-            periodSeconds: 5
+            initialDelaySeconds: 10 # Wait before first check
+            periodSeconds: 5 # How often to check
+          # Liveness: if this fails repeatedly, Kubernetes restarts the container
           livenessProbe:
             httpGet:
               path: /actuator/health
               port: http
             initialDelaySeconds: 20
             periodSeconds: 10
+          # How much CPU/memory this container may use
           resources:
             requests:
-              cpu: 50m
-              memory: 256Mi
+              cpu: 50m # Guaranteed 0.05 CPU cores when scheduling
+              memory: 256Mi # Guaranteed 256 MiB RAM when scheduling
             limits:
-              memory: 512Mi
+              memory: 512Mi # Hard cap — container can be killed if it exceeds this
