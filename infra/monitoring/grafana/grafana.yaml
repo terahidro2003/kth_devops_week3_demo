@@ -1,0 +1,188 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+data:
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        uid: prometheus
+        access: proxy
+        url: http://prometheus:9090
+        isDefault: true
+        editable: false
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards-provider
+data:
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: default
+        orgId: 1
+        folder: ""
+        type: file
+        disableDeletion: false
+        updateIntervalSeconds: 30
+        options:
+          path: /var/lib/grafana/dashboards
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+data:
+  http-latency.json: |
+    {
+      "annotations": { "list": [] },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 0,
+      "id": null,
+      "links": [],
+      "panels": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 }
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 10, "w": 24, "x": 0, "y": 0 },
+          "id": 1,
+          "targets": [
+            {
+              "expr": "rate(http_server_requests_seconds_sum{uri=\"/hello-world\"}[1m]) / rate(http_server_requests_seconds_count{uri=\"/hello-world\"}[1m])",
+              "legendFormat": "avg latency",
+              "refId": "A"
+            },
+            {
+              "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{uri=\"/hello-world\"}[1m])) by (le))",
+              "legendFormat": "p95",
+              "refId": "B"
+            },
+            {
+              "expr": "histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{uri=\"/hello-world\"}[1m])) by (le))",
+              "legendFormat": "p99",
+              "refId": "C"
+            }
+          ],
+          "title": "HTTP request latency (/hello-world)",
+          "type": "timeseries"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "reqps",
+              "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 }
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 10 },
+          "id": 2,
+          "targets": [
+            {
+              "expr": "sum(rate(http_server_requests_seconds_count{uri=\"/hello-world\"}[1m]))",
+              "legendFormat": "requests/s",
+              "refId": "A"
+            }
+          ],
+          "title": "HTTP request rate (/hello-world)",
+          "type": "timeseries"
+        }
+      ],
+      "schemaVersion": 39,
+      "tags": ["demo", "latency"],
+      "templating": { "list": [] },
+      "time": { "from": "now-15m", "to": "now" },
+      "timezone": "browser",
+      "title": "Demo HTTP Latency",
+      "uid": "demo-http-latency",
+      "version": 1
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  labels:
+    app: grafana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      nodeSelector:
+        role: grafana
+      containers:
+        - name: grafana
+          image: grafana/grafana:11.2.0
+          ports:
+            - name: http
+              containerPort: 3000
+          env:
+            - name: GF_SECURITY_ADMIN_USER
+              value: admin
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              value: admin
+            - name: GF_USERS_ALLOW_SIGN_UP
+              value: "false"
+            - name: GF_AUTH_ANONYMOUS_ENABLED
+              value: "false"
+          volumeMounts:
+            - name: datasources
+              mountPath: /etc/grafana/provisioning/datasources
+            - name: dashboards-provider
+              mountPath: /etc/grafana/provisioning/dashboards
+            - name: dashboards
+              mountPath: /var/lib/grafana/dashboards
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
+      volumes:
+        - name: datasources
+          configMap:
+            name: grafana-datasources
+        - name: dashboards-provider
+          configMap:
+            name: grafana-dashboards-provider
+        - name: dashboards
+          configMap:
+            name: grafana-dashboards
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  labels:
+    app: grafana
+spec:
+  type: NodePort
+  selector:
+    app: grafana
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+      nodePort: 30300
