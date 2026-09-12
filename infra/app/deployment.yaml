@@ -9,7 +9,7 @@ metadata:
   labels:
     app: demo
 spec:
-  # How many Pods (app instances) to run — one per app worker node in this demo
+  # How many Pods (app instances) to run
   replicas: 5
   # Tells the Deployment which Pods it owns (must match the Pod template labels below)
   selector:
@@ -25,7 +25,7 @@ spec:
       # Only schedule these Pods on nodes that have label role=app
       nodeSelector:
         role: app
-      # Soft rule: prefer spreading Pods across different nodes (not a hard requirement)
+      # Soft rule: prefer spreading Pods across different pods (not a hard requirement)
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:

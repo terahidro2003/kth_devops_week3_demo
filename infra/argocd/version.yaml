@@ -1,0 +1,12 @@
+# Pin Argo CD version for reproducible installs (applied by up.sh).
+# https://raw.githubusercontent.com/argoproj/argo-cd/v2.14.11/manifests/install.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-install-version
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: argocd
+data:
+  version: v2.14.11
+  installUrl: https://raw.githubusercontent.com/argoproj/argo-cd/v2.14.11/manifests/install.yaml
