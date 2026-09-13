@@ -1,0 +1,49 @@
+name: stockholm-weather-demo
+
+services:
+  app:
+    image: weather:v1
+    build:
+      context: ./app
+      target: good
+    ports:
+      - "127.0.0.1:8082:8080"
+
+  # A separate container for comparing v2 with v1 without replacing v1.
+  app-bad:
+    profiles: [comparison]
+    image: weather:v2
+    build:
+      context: ./app
+      target: bad
+    ports:
+      - "127.0.0.1:8083:8080"
+
+  test:
+    profiles: [tools]
+    build:
+      context: ./app
+      target: test
+
+  loadgen:
+    profiles: [traffic]
+    image: weather-loadgen:local
+    build:
+      context: ./scripts/load-generator
+    environment:
+      TARGET_URL: ${LOADGEN_TARGET_URL:-http://app:8080/hello-world}
+      REQUEST_INTERVAL_MS: "100"
+      REQUEST_TIMEOUT_MS: "2000"
+      REPORT_INTERVAL_MS: "5000"
+    init: true
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  loadgen-test:
+    profiles: [tools]
+    build:
+      context: ./scripts/load-generator
+      target: test
