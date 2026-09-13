@@ -3,15 +3,27 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 CLUSTER_NAME="devops-demo"
-IMAGE_NAME="demo:local"
+GOOD_IMAGE="demo:good"
+BAD_IMAGE="demo:bad"
 ARGOCD_VERSION="v2.14.11"
 ARGOCD_INSTALL_URL="https://raw.githubusercontent.com/argoproj/argo-cd/${ARGOCD_VERSION}/manifests/install.yaml"
+ARGO_ROLLOUTS_VERSION="v1.7.2"
+ARGO_ROLLOUTS_INSTALL_URL="https://github.com/argoproj/argo-rollouts/releases/download/${ARGO_ROLLOUTS_VERSION}/install.yaml"
 
 # Optional: export GIT_REPO_URL=https://github.com/<you>/<repo>.git
 # If unset, up.sh tries `git remote get-url origin`, then falls back to kubectl apply.
+# Argo CD in-cluster has no SSH agent, so normalize git@ / ssh:// remotes to HTTPS.
 GIT_REPO_URL="${GIT_REPO_URL:-}"
 if [[ -z "${GIT_REPO_URL}" ]] && git -C "${ROOT_DIR}" remote get-url origin >/dev/null 2>&1; then
   GIT_REPO_URL="$(git -C "${ROOT_DIR}" remote get-url origin)"
+fi
+if [[ -n "${GIT_REPO_URL}" ]]; then
+  if [[ "${GIT_REPO_URL}" =~ ^git@([^:]+):(.+)$ ]]; then
+    GIT_REPO_URL="https://${BASH_REMATCH[1]}/${BASH_REMATCH[2]}"
+  elif [[ "${GIT_REPO_URL}" =~ ^ssh://git@([^/]+)/(.+)$ ]]; then
+    GIT_REPO_URL="https://${BASH_REMATCH[1]}/${BASH_REMATCH[2]}"
+  fi
+  GIT_REPO_URL="${GIT_REPO_URL%.git}.git"
 fi
 
 echo "==> Creating kind cluster '${CLUSTER_NAME}' (1 control-plane + 7 workers)..."
@@ -25,11 +37,18 @@ for i in 3 4 5 6 7; do
   kubectl label node "${CLUSTER_NAME}-worker${i}" role=app --overwrite
 done
 
-echo "==> Building app image ${IMAGE_NAME}..."
-docker build -t "${IMAGE_NAME}" "${ROOT_DIR}/app"
+echo "==> Building app images ${GOOD_IMAGE} (fast) and ${BAD_IMAGE} (slow)..."
+docker build -t "${GOOD_IMAGE}" --build-arg DEMO_DELAY_MS=0 "${ROOT_DIR}/app"
+docker build -t "${BAD_IMAGE}" --build-arg DEMO_DELAY_MS=1500 "${ROOT_DIR}/app"
 
-echo "==> Loading image into kind..."
-kind load docker-image "${IMAGE_NAME}" --name "${CLUSTER_NAME}"
+echo "==> Loading images into kind..."
+kind load docker-image "${GOOD_IMAGE}" --name "${CLUSTER_NAME}"
+kind load docker-image "${BAD_IMAGE}" --name "${CLUSTER_NAME}"
+
+echo "==> Installing Argo Rollouts ${ARGO_ROLLOUTS_VERSION}..."
+kubectl create namespace argo-rollouts --dry-run=client -o yaml | kubectl apply -f -
+kubectl apply -n argo-rollouts -f "${ARGO_ROLLOUTS_INSTALL_URL}"
+kubectl -n argo-rollouts rollout status deployment/argo-rollouts --timeout=180s
 
 echo "==> Installing Argo CD ${ARGOCD_VERSION}..."
 kubectl apply -f "${ROOT_DIR}/infra/argocd/namespace.yaml"
@@ -38,29 +57,79 @@ kubectl apply -n argocd -f "${ARGOCD_INSTALL_URL}"
 kubectl apply -f "${ROOT_DIR}/infra/argocd/nodeport-service.yaml"
 kubectl apply -f "${ROOT_DIR}/infra/argocd/version.yaml"
 
-echo "==> Waiting for Argo CD server..."
+echo "==> Waiting for Argo CD components..."
 kubectl -n argocd rollout status deployment/argocd-server --timeout=300s
+kubectl -n argocd rollout status deployment/argocd-repo-server --timeout=300s
+kubectl -n argocd rollout status statefulset/argocd-application-controller --timeout=300s
 
-if [[ -n "${GIT_REPO_URL}" ]]; then
-  echo "==> Registering Argo CD Applications from ${GIT_REPO_URL}..."
-  sed "s|GIT_REPO_URL_PLACEHOLDER|${GIT_REPO_URL}|g" \
-    "${ROOT_DIR}/infra/argocd/applications/apps.yaml" | kubectl apply -f -
-
-  echo "==> Waiting for Argo CD apps to sync (may take a minute)..."
-  for app in demo prometheus grafana; do
-    kubectl -n argocd wait --for=jsonpath='{.status.sync.status}'=Synced "application/${app}" --timeout=300s || true
-    kubectl -n argocd wait --for=jsonpath='{.status.health.status}'=Healthy "application/${app}" --timeout=300s || true
-  done
-else
-  echo "==> No GIT_REPO_URL / git remote — bootstrapping workloads with kubectl apply"
-  echo "    (Set GIT_REPO_URL or add a git remote to manage them via Argo CD instead.)"
+bootstrap_with_kubectl() {
+  echo "==> Bootstrapping workloads with kubectl apply..."
+  # Ensure no leftover Deployment from older demos shares app=demo selectors.
+  kubectl delete deployment demo --ignore-not-found >/dev/null 2>&1 || true
   kubectl apply -f "${ROOT_DIR}/infra/app"
   kubectl apply -f "${ROOT_DIR}/infra/monitoring/prometheus"
   kubectl apply -f "${ROOT_DIR}/infra/monitoring/grafana"
+}
+
+wait_for_argo_apps() {
+  local deadline=$((SECONDS + 120))
+  local app sync health msg
+  while (( SECONDS < deadline )); do
+    local all_ok=1
+    for app in demo prometheus grafana; do
+      sync="$(kubectl -n argocd get "application/${app}" -o jsonpath='{.status.sync.status}' 2>/dev/null || true)"
+      health="$(kubectl -n argocd get "application/${app}" -o jsonpath='{.status.health.status}' 2>/dev/null || true)"
+      msg="$(kubectl -n argocd get "application/${app}" -o jsonpath='{.status.conditions[0].message}' 2>/dev/null || true)"
+      echo "    ${app}: sync=${sync:-?} health=${health:-?}"
+      if [[ -n "${msg}" && "${msg}" == *"failed"* ]]; then
+        echo "    ${app} error: ${msg}"
+        return 1
+      fi
+      if [[ "${sync}" != "Synced" || "${health}" != "Healthy" ]]; then
+        all_ok=0
+      fi
+    done
+    if (( all_ok == 1 )); then
+      return 0
+    fi
+    sleep 5
+  done
+  return 1
+}
+
+wait_for_demo_rollout() {
+  local deadline=$((SECONDS + 180))
+  local phase
+  while (( SECONDS < deadline )); do
+    phase="$(kubectl get rollout demo -o jsonpath='{.status.phase}' 2>/dev/null || true)"
+    echo "    demo rollout phase=${phase:-?}"
+    if [[ "${phase}" == "Healthy" ]]; then
+      return 0
+    fi
+    sleep 5
+  done
+  return 1
+}
+
+if [[ -n "${GIT_REPO_URL}" ]]; then
+  echo "==> Registering Argo CD Applications from ${GIT_REPO_URL}..."
+  # Strip CR so Windows-checked-out YAML cannot poison the repo URL.
+  sed "s|GIT_REPO_URL_PLACEHOLDER|${GIT_REPO_URL}|g; s/\r$//" \
+    "${ROOT_DIR}/infra/argocd/applications/apps.yaml" | kubectl apply -f -
+
+  echo "==> Waiting for Argo CD apps to sync (up to ~2 min)..."
+  if ! wait_for_argo_apps; then
+    echo "==> Argo CD sync did not finish — falling back to kubectl apply"
+    bootstrap_with_kubectl
+  fi
+else
+  echo "==> No GIT_REPO_URL / git remote — bootstrapping workloads with kubectl apply"
+  echo "    (Set GIT_REPO_URL or add a git remote to manage them via Argo CD instead.)"
+  bootstrap_with_kubectl
 fi
 
 echo "==> Waiting for workloads to become ready..."
-kubectl rollout status deployment/demo --timeout=180s
+wait_for_demo_rollout
 kubectl rollout status deployment/prometheus --timeout=180s
 kubectl rollout status deployment/grafana --timeout=180s
 
@@ -74,8 +143,16 @@ echo "  Grafana:     http://localhost:3000  (admin / admin)"
 echo "  Argo CD:     https://localhost:8081  (admin / ${ARGOCD_PASSWORD:-<see secret argocd-initial-admin-secret>})"
 echo "               (accept the self-signed certificate warning)"
 echo
+echo "Canary demo:"
+echo "  ./infra/scripts/load.sh          # generate traffic (keep running)"
+echo "  ./infra/scripts/deploy-bad.sh     # canary 20% → SLO fail → auto-rollback"
+echo "  ./infra/scripts/deploy-good.sh    # canary 20% → SLO pass → promote"
+echo
 echo "Node roles:"
 kubectl get nodes -L role
 echo
 echo "Pods:"
 kubectl get pods -A -o wide
+echo
+echo "Rollout:"
+kubectl get rollout demo -o wide 2>/dev/null || true

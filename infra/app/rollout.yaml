@@ -1,0 +1,72 @@
+# Progressive delivery controller: canary at 20% weight, Prometheus SLO analysis, auto-rollback.
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: demo
+  labels:
+    app: demo
+spec:
+  replicas: 5
+  selector:
+    matchLabels:
+      app: demo
+  template:
+    metadata:
+      labels:
+        app: demo
+      annotations:
+        demo.kth/restartedAt: init
+    spec:
+      nodeSelector:
+        role: app
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: demo
+                topologyKey: kubernetes.io/hostname
+      containers:
+        - name: demo
+          image: demo:good
+          imagePullPolicy: Never
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+  strategy:
+    canary:
+      # Rollouts pins these Services to canary vs stable ReplicaSets for metrics + traffic share.
+      canaryService: demo-canary
+      stableService: demo-stable
+      steps:
+        # ~20% of replicas (1 of 5) serve the new version; NodePort traffic follows the same ratio.
+        - setWeight: 20
+        - analysis:
+            templates:
+              - templateName: canary-slo
+            args:
+              - name: latest-hash
+                valueFrom:
+                  podTemplateHashValue: Latest
+        # SLO held → promote to 100% (replace remaining stable pods).
+        - setWeight: 100
