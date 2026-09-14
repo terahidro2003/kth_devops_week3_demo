@@ -1,4 +1,4 @@
-# NodePort entrypoint — selects all demo pods (stable + canary). Replica weight ≈ traffic share.
+# NodePort entrypoint — selects all demo pods (stable + canary). Replica weight ≈ traffic share (~50/50 during canary).
 apiVersion: v1
 kind: Service
 metadata:

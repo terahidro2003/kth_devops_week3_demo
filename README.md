@@ -357,8 +357,8 @@ Kubernetes canary infra (`infra/app`, `infra/scripts`) uses the same
 `weather:v1` / `weather:v2` tags and Docker `good` / `bad` targets as local Compose.
 `up.sh` loads both images into Kind; `deploy-good.sh` / `deploy-bad.sh` patch the
 Rollout image and watch promote vs auto-rollback. Analysis judges canary pods by
-`/hello-world` 5xx rate (fail above 10%). With `imagePullPolicy: Never`, both
-images must be available on eligible nodes.
+`/hello-world` 5xx count in a 1-minute window (allow ≤10 failures; abort above that).
+With `imagePullPolicy: Never`, both images must be available on eligible nodes.
 
 Grafana provisions a canary error-rate dashboard (`demo-canary-errors`). A load
 generator should call `/hello-world`, not just the HTML page. With several pods

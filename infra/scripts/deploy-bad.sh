@@ -11,11 +11,12 @@ docker image inspect "${BAD_IMAGE}" >/dev/null 2>&1 \
   || docker build -t "${BAD_IMAGE}" --target bad "${ROOT_DIR}/app"
 kind load docker-image "${BAD_IMAGE}" --name "${CLUSTER_NAME}"
 
-# Avoid Argo CD selfHeal reverting live demo changes (and recreating old Deployment from remote Git).
+# Avoid Argo CD selfHeal reverting weather:v2 → Git's weather:v1 (that skips canary steps).
+# Merge patch must set automated:null; omitting it leaves selfHeal enabled.
 if kubectl -n argocd get application demo >/dev/null 2>&1; then
   echo "==> Disabling Argo CD auto-sync for application/demo..."
   kubectl -n argocd patch application demo --type=merge \
-    -p '{"spec":{"syncPolicy":{"syncOptions":["CreateNamespace=true"]}}}'
+    -p '{"spec":{"syncPolicy":{"automated":null,"syncOptions":["CreateNamespace=true"]}}}'
 fi
 
 # Old Deployment (pre-Rollout) shares app=demo and breaks Services/endpoints.
@@ -36,8 +37,8 @@ kubectl patch rollout demo --type=json -p="[
   {\"op\":\"replace\",\"path\":\"/spec/template/metadata/annotations/demo.kth~1restartedAt\",\"value\":\"${TS}\"}
 ]"
 
-echo "==> Watching canary (20% weight) → analysis → expected Abort/rollback..."
-echo "    Keep ./infra/scripts/load.sh running so Prometheus sees canary error rate."
+echo "==> Watching canary (50% weight ≈ 2 bad + 2 good) → analysis → expected Abort/rollback..."
+echo "    Keep ./infra/scripts/load.sh running so Prometheus sees canary 5xx counts (budget: 10)."
 deadline=$((SECONDS + 360))
 while (( SECONDS < deadline )); do
   phase="$(kubectl get rollout demo -o jsonpath='{.status.phase}' 2>/dev/null || true)"
@@ -51,7 +52,13 @@ while (( SECONDS < deadline )); do
     exit 0
   fi
   if [[ "${phase}" == "Healthy" ]]; then
-    echo "==> Unexpected full promote (check load + Prometheus scrape of canary pods)."
+    echo "==> Unexpected Healthy without rollback (canary may have been reverted by Argo CD selfHeal)."
+    kubectl describe rollout demo | tail -n 30
+    exit 1
+  fi
+  if [[ "${msg}" == *"SkipSteps"* ]] || kubectl get events --field-selector involvedObject.name=demo --sort-by=.lastTimestamp 2>/dev/null | tail -n 5 | grep -q SkipSteps; then
+    echo "==> Canary steps were skipped (often Argo CD selfHeal reverting the image). Aborting watch."
+    kubectl -n argocd get application demo -o jsonpath='{.spec.syncPolicy}{"\n"}' 2>/dev/null || true
     exit 1
   fi
   sleep 5

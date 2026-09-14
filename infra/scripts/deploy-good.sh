@@ -11,11 +11,12 @@ docker image inspect "${GOOD_IMAGE}" >/dev/null 2>&1 \
   || docker build -t "${GOOD_IMAGE}" --target good "${ROOT_DIR}/app"
 kind load docker-image "${GOOD_IMAGE}" --name "${CLUSTER_NAME}"
 
-# Avoid Argo CD selfHeal reverting live demo changes (and recreating old Deployment from remote Git).
+# Avoid Argo CD selfHeal reverting live demo changes.
+# Merge patch must set automated:null; omitting it leaves selfHeal enabled.
 if kubectl -n argocd get application demo >/dev/null 2>&1; then
   echo "==> Disabling Argo CD auto-sync for application/demo..."
   kubectl -n argocd patch application demo --type=merge \
-    -p '{"spec":{"syncPolicy":{"syncOptions":["CreateNamespace=true"]}}}'
+    -p '{"spec":{"syncPolicy":{"automated":null,"syncOptions":["CreateNamespace=true"]}}}'
 fi
 
 # Old Deployment (pre-Rollout) shares app=demo and breaks Services/endpoints.
@@ -36,8 +37,8 @@ kubectl patch rollout demo --type=json -p="[
   {\"op\":\"replace\",\"path\":\"/spec/template/metadata/annotations/demo.kth~1restartedAt\",\"value\":\"${TS}\"}
 ]"
 
-echo "==> Watching canary (20% weight) → analysis → expected promote..."
-echo "    Keep ./infra/scripts/load.sh running so Prometheus sees canary error rate."
+echo "==> Watching canary (50% weight ≈ 2 new + 2 stable) → analysis → expected promote..."
+echo "    Keep ./infra/scripts/load.sh running so Prometheus sees canary 5xx counts (budget: 10)."
 deadline=$((SECONDS + 360))
 while (( SECONDS < deadline )); do
   phase="$(kubectl get rollout demo -o jsonpath='{.status.phase}' 2>/dev/null || true)"
