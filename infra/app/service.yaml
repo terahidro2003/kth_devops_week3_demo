@@ -1,3 +1,4 @@
+# NodePort entrypoint — selects all demo pods (stable + canary). Replica weight ≈ traffic share.
 apiVersion: v1
 kind: Service
 metadata:
@@ -13,3 +14,33 @@ spec:
       port: 8080
       targetPort: http
       nodePort: 30080
+---
+# Stable subset — selector refined by Argo Rollouts; Prometheus scrapes this for baseline.
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-stable
+  labels:
+    app: demo
+spec:
+  selector:
+    app: demo
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+# Canary subset — AnalysisTemplate queries metrics with service="demo-canary".
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-canary
+  labels:
+    app: demo
+spec:
+  selector:
+    app: demo
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

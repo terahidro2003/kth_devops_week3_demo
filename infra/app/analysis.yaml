@@ -1,0 +1,37 @@
+# Fail the canary (and trigger Rollouts abort/rollback) if p95 latency on canary pods is too high.
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: canary-slo
+spec:
+  args:
+    - name: latest-hash
+  metrics:
+    - name: p95-latency
+      # Let canary pods come up and receive a bit of load before first sample.
+      initialDelay: 30s
+      interval: 20s
+      count: 8
+      failureLimit: 2
+      inconclusiveLimit: 5
+      consecutiveErrorLimit: 10
+      # vector(-1) sentinel = no samples yet → inconclusive (not Error / not pass).
+      successCondition: result[0] >= 0 && result[0] < 0.2
+      failureCondition: result[0] >= 0.2
+      provider:
+        prometheus:
+          address: http://prometheus.default.svc:9090
+          query: |
+            (
+              histogram_quantile(
+                0.95,
+                sum by (le) (
+                  rate(
+                    http_server_requests_seconds_bucket{
+                      uri="/hello-world",
+                      pod=~"demo-{{args.latest-hash}}-.*"
+                    }[1m]
+                  )
+                )
+              )
+            ) or vector(-1)
