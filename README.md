@@ -353,17 +353,16 @@ Filter the weather route so health probes and static assets do not dilute errors
 Filter the candidate version so stable pods do not hide its 50% failure rate.
 Counters are per pod; `rate` is evaluated per series before summing them.
 
-The existing infrastructure still builds `demo:local` using the Dockerfile's
-default **good** target. Its manifests and scripts have not been converted to
-Rollouts by this app change. For the canary, load both `weather:v1` and `weather:v2`
-into the Kind cluster and reference these separate image tags in the rollout.
-With `imagePullPolicy: Never`, both images must be available on eligible nodes.
-Change the desired image through Git when Argo CD manages the resource.
+Kubernetes canary infra (`infra/app`, `infra/scripts`) uses the same
+`weather:v1` / `weather:v2` tags and Docker `good` / `bad` targets as local Compose.
+`up.sh` loads both images into Kind; `deploy-good.sh` / `deploy-bad.sh` patch the
+Rollout image and watch promote vs auto-rollback. Analysis judges canary pods by
+`/hello-world` 5xx rate (fail above 10%). With `imagePullPolicy: Never`, both
+images must be available on eligible nodes.
 
-The existing Grafana queries still match `/hello-world`, but the dashboard needs
-a candidate-specific error panel and Argo Rollouts still needs its analysis rule.
-A load generator should call `/hello-world`, not just the HTML page. With several
-pods and mixed versions, browser clicks will not necessarily alternate globally.
+Grafana provisions a canary error-rate dashboard (`demo-canary-errors`). A load
+generator should call `/hello-world`, not just the HTML page. With several pods
+and mixed versions, browser clicks will not necessarily alternate globally.
 
 Version tags are convenient for local rehearsal. Before a shared or published
 deployment, use unique release tags/digests rather than rebuilding an already

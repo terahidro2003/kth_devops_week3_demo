@@ -1,4 +1,4 @@
-# Fail the canary (and trigger Rollouts abort/rollback) if p95 latency on canary pods is too high.
+# Fail the canary (and trigger Rollouts abort/rollback) if /hello-world 5xx rate is too high.
 apiVersion: argoproj.io/v1alpha1
 kind: AnalysisTemplate
 metadata:
@@ -7,7 +7,7 @@ spec:
   args:
     - name: latest-hash
   metrics:
-    - name: p95-latency
+    - name: hello-world-error-rate
       # Let canary pods come up and receive a bit of load before first sample.
       initialDelay: 30s
       interval: 20s
@@ -16,22 +16,43 @@ spec:
       inconclusiveLimit: 5
       consecutiveErrorLimit: 10
       # vector(-1) sentinel = no samples yet → inconclusive (not Error / not pass).
-      successCondition: result[0] >= 0 && result[0] < 0.2
-      failureCondition: result[0] >= 0.2
+      # Fraction in [0,1]: good (FAILURE_EVERY=0) stays near 0; bad (~50%) fails.
+      successCondition: result[0] >= 0 && result[0] < 0.1
+      failureCondition: result[0] >= 0.1
       provider:
         prometheus:
           address: http://prometheus.default.svc:9090
           query: |
             (
-              histogram_quantile(
-                0.95,
-                sum by (le) (
+              (
+                sum(
                   rate(
-                    http_server_requests_seconds_bucket{
+                    http_server_requests_seconds_count{
                       uri="/hello-world",
+                      status=~"5..",
                       pod=~"demo-{{args.latest-hash}}-.*"
                     }[1m]
                   )
+                )
+                or
+                (
+                  0 * sum(
+                    rate(
+                      http_server_requests_seconds_count{
+                        uri="/hello-world",
+                        pod=~"demo-{{args.latest-hash}}-.*"
+                      }[1m]
+                    )
+                  )
+                )
+              )
+              /
+              sum(
+                rate(
+                  http_server_requests_seconds_count{
+                    uri="/hello-world",
+                    pod=~"demo-{{args.latest-hash}}-.*"
+                  }[1m]
                 )
               )
             ) or vector(-1)

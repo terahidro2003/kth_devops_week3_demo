@@ -3,8 +3,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 CLUSTER_NAME="devops-demo"
-GOOD_IMAGE="demo:good"
-BAD_IMAGE="demo:bad"
+GOOD_IMAGE="weather:v1"
+BAD_IMAGE="weather:v2"
 ARGOCD_VERSION="v2.14.11"
 ARGOCD_INSTALL_URL="https://raw.githubusercontent.com/argoproj/argo-cd/${ARGOCD_VERSION}/manifests/install.yaml"
 ARGO_ROLLOUTS_VERSION="v1.7.2"
@@ -37,9 +37,9 @@ for i in 3 4 5 6 7; do
   kubectl label node "${CLUSTER_NAME}-worker${i}" role=app --overwrite
 done
 
-echo "==> Building app images ${GOOD_IMAGE} (fast) and ${BAD_IMAGE} (slow)..."
-docker build -t "${GOOD_IMAGE}" --build-arg DEMO_DELAY_MS=0 "${ROOT_DIR}/app"
-docker build -t "${BAD_IMAGE}" --build-arg DEMO_DELAY_MS=1500 "${ROOT_DIR}/app"
+echo "==> Building app images ${GOOD_IMAGE} (healthy) and ${BAD_IMAGE} (50% HTTP 500)..."
+docker build -t "${GOOD_IMAGE}" --target good "${ROOT_DIR}/app"
+docker build -t "${BAD_IMAGE}" --target bad "${ROOT_DIR}/app"
 
 echo "==> Loading images into kind..."
 kind load docker-image "${GOOD_IMAGE}" --name "${CLUSTER_NAME}"
@@ -145,8 +145,8 @@ echo "               (accept the self-signed certificate warning)"
 echo
 echo "Canary demo:"
 echo "  ./infra/scripts/load.sh          # generate traffic (keep running)"
-echo "  ./infra/scripts/deploy-bad.sh     # canary 20% → SLO fail → auto-rollback"
-echo "  ./infra/scripts/deploy-good.sh    # canary 20% → SLO pass → promote"
+echo "  ./infra/scripts/deploy-bad.sh     # weather:v2 canary 20% → error SLO fail → auto-rollback"
+echo "  ./infra/scripts/deploy-good.sh    # weather:v1 canary 20% → error SLO pass → promote"
 echo
 echo "Node roles:"
 kubectl get nodes -L role

@@ -30,7 +30,7 @@ spec:
       port: 8080
       targetPort: http
 ---
-# Canary subset — AnalysisTemplate queries metrics with service="demo-canary".
+# Canary subset — Rollouts retargets the selector; analysis filters by canary pod hash.
 apiVersion: v1
 kind: Service
 metadata:

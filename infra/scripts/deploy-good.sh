@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Deploy the fast image as a canary; AnalysisTemplate should pass → promote to 100%.
+# Deploy weather:v1 as a canary; AnalysisTemplate should pass → promote to 100%.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 CLUSTER_NAME="devops-demo"
-GOOD_IMAGE="demo:good"
+GOOD_IMAGE="weather:v1"
 
 echo "==> Ensuring ${GOOD_IMAGE} is in kind..."
 docker image inspect "${GOOD_IMAGE}" >/dev/null 2>&1 \
-  || docker build -t "${GOOD_IMAGE}" --build-arg DEMO_DELAY_MS=0 "${ROOT_DIR}/app"
+  || docker build -t "${GOOD_IMAGE}" --target good "${ROOT_DIR}/app"
 kind load docker-image "${GOOD_IMAGE}" --name "${CLUSTER_NAME}"
 
 # Avoid Argo CD selfHeal reverting live demo changes (and recreating old Deployment from remote Git).
@@ -37,7 +37,7 @@ kubectl patch rollout demo --type=json -p="[
 ]"
 
 echo "==> Watching canary (20% weight) → analysis → expected promote..."
-echo "    Keep ./infra/scripts/load.sh running so Prometheus sees canary latency."
+echo "    Keep ./infra/scripts/load.sh running so Prometheus sees canary error rate."
 deadline=$((SECONDS + 360))
 while (( SECONDS < deadline )); do
   phase="$(kubectl get rollout demo -o jsonpath='{.status.phase}' 2>/dev/null || true)"

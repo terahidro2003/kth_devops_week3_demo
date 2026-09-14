@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Deploy the slow image as a canary; AnalysisTemplate should fail → automatic rollback.
+# Deploy weather:v2 as a canary; AnalysisTemplate should fail → automatic rollback.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 CLUSTER_NAME="devops-demo"
-BAD_IMAGE="demo:bad"
+BAD_IMAGE="weather:v2"
 
 echo "==> Ensuring ${BAD_IMAGE} is in kind..."
 docker image inspect "${BAD_IMAGE}" >/dev/null 2>&1 \
-  || docker build -t "${BAD_IMAGE}" --build-arg DEMO_DELAY_MS=1500 "${ROOT_DIR}/app"
+  || docker build -t "${BAD_IMAGE}" --target bad "${ROOT_DIR}/app"
 kind load docker-image "${BAD_IMAGE}" --name "${CLUSTER_NAME}"
 
 # Avoid Argo CD selfHeal reverting live demo changes (and recreating old Deployment from remote Git).
@@ -37,7 +37,7 @@ kubectl patch rollout demo --type=json -p="[
 ]"
 
 echo "==> Watching canary (20% weight) → analysis → expected Abort/rollback..."
-echo "    Keep ./infra/scripts/load.sh running so Prometheus sees canary latency."
+echo "    Keep ./infra/scripts/load.sh running so Prometheus sees canary error rate."
 deadline=$((SECONDS + 360))
 while (( SECONDS < deadline )); do
   phase="$(kubectl get rollout demo -o jsonpath='{.status.phase}' 2>/dev/null || true)"
@@ -51,7 +51,7 @@ while (( SECONDS < deadline )); do
     exit 0
   fi
   if [[ "${phase}" == "Healthy" ]]; then
-    echo "==> Unexpected full promote (check load + Prometheus scrape of demo-canary)."
+    echo "==> Unexpected full promote (check load + Prometheus scrape of canary pods)."
     exit 1
   fi
   sleep 5

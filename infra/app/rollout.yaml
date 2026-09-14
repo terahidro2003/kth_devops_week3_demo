@@ -30,7 +30,8 @@ spec:
                 topologyKey: kubernetes.io/hostname
       containers:
         - name: demo
-          image: demo:good
+          # weather:v1 (good) / weather:v2 (bad) bake APP_VERSION + FAILURE_EVERY; do not override here.
+          image: weather:v1
           imagePullPolicy: Never
           ports:
             - name: http
