@@ -40,6 +40,22 @@ button span { margin-left: 22px; }button:hover { background: #245462; }button:di
 .history { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; padding: 0; margin: 14px 0 10px; min-height: 29px; }
 .history li { border-radius: 6px; padding: 6px 10px; background: #e0eee5; font-size: 12px; color: #25553d; }.history li.error { background: #f8e1d7; color: #812f20; }.history li.history-empty { padding-left: 0; background: transparent; color: #5e7070; }
 .session-note { margin: 0; color: #5e7070; font-size: 11px; line-height: 1.5; }
+.traffic-panel { background: #edf1e9; border: 1px solid #d7dfd3; border-radius: 16px; padding: 17px 20px; margin-bottom: 16px; }
+.traffic-panel > p:not(.session-note) { color: #586c6b; font-size: 13px; }
+.traffic-controls { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0; }
+.traffic-controls button { min-width: 150px; flex: 1; }
+#stop-traffic { background: #8a3d2e; }
+button:disabled { cursor: not-allowed; }
+#traffic-status { background: #fff9; padding: 5px 10px; border-radius: 20px; }
+#traffic-status[data-running="true"] { background: #c5e3d4; color: #1d5543; }
+#traffic-target { overflow-wrap: anywhere; }
+.request-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 18px 0; }
+.request-stats div { padding: 10px; border-radius: 10px; background: #edf2eb; }
+.request-stats dt { font-size: 11px; color: #586c6b; }
+.request-stats dd { margin: 5px 0 0; font-size: 25px; font-variant-numeric: tabular-nums; }
+.last-failure { padding: 10px 12px; border-radius: 8px; background: #edf2eb; font-size: 12px; line-height: 1.5; }
+.last-failure.error { background: #f8e1d7; color: #812f20; }
+@media (max-width: 540px) { .request-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 footer { color: #596d6b; font-size: 11px; margin-top: 23px; flex-wrap: wrap; }
 @media (max-width: 540px) { .shell { padding: 22px 18px; }.masthead { align-items: flex-start; }.demo-label { max-width: 74px; text-align: right; }.intro { margin-top: 30px; }.weather-card { padding: 19px 18px 16px; }.forecast { padding-top: 20px; }.temperature { font-size: 65px; }.unit { font-size: 27px; }.forecast-values h2 { font-size: 16px; }.weather-message { font-size: 14px; }.request-heading { align-items: flex-start; flex-direction: column; gap: 5px; }.location span { display: block; margin: 2px 0 0; } }
 @media (prefers-reduced-motion: reduce) { .weather-card { transition: none; } }

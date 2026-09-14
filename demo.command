@@ -30,7 +30,7 @@ while true; do
     printf '\n======================================================\n'
     printf '  STOCKHOLM WEATHER - Local rehearsal\n'
     printf '======================================================\n'
-    printf '  1. Run app and generator tests in Docker\n'
+    printf '  1. Run app, frontend and generator tests in Docker\n'
     printf '  2. Build both images: v1 and v2\n'
     printf '  3. Start v1 and v2 together, without rebuilding\n'
     printf '  4. Open both pages in the browser\n'
@@ -46,7 +46,7 @@ while true; do
     case "$selection" in
         1)
             printf '\nTests start temporary apps inside Docker, not on ports 8082 or 8083.\n'
-            if run_docker run --build --rm test && run_docker run --build --rm loadgen-test; then
+            if run_docker run --build --rm test && run_docker run --build --rm frontend-test && run_docker run --build --rm loadgen-test; then
                 printf '\nTests passed.\n'
             fi
             ;;

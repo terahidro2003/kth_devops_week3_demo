@@ -42,6 +42,12 @@ services:
         max-size: "5m"
         max-file: "2"
 
+  frontend-test:
+    profiles: [tools]
+    build:
+      context: ./app
+      target: frontend-test
+
   loadgen-test:
     profiles: [tools]
     build:

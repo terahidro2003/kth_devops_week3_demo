@@ -21,6 +21,13 @@ ENTRYPOINT ["java", "-jar", "app.jar"]
 FROM runtime AS bad
 ENV APP_VERSION=v2 FAILURE_EVERY=2
 
-# Healthy default (also used by infra/scripts when --target is omitted).
+# Browser traffic controls: test the shipped script inside Docker without host Node.
+FROM node:22-alpine AS frontend-test
+WORKDIR /tests
+COPY src/main/resources/static ./static
+COPY src/test/frontend ./
+CMD ["node", "--test", "app.test.cjs"]
+
+# Keep good last so an untargeted build still produces the healthy app.
 FROM runtime AS good
 ENV APP_VERSION=v1 FAILURE_EVERY=0

@@ -52,7 +52,7 @@ when shared through Git, even if it was edited on Windows.
 
 Recommended first run:
 
-1. Choose **1** to run the app tests and the traffic generator test in Docker.
+1. Choose **1** to run the app, browser controls and traffic generator tests in Docker.
 2. Choose **2** to build both images.
 3. Choose **3** to start **both versions simultaneously**.
 4. After Java starts, choose **4** to open both pages in your browser.
@@ -85,7 +85,59 @@ docker compose -f compose.yaml up -d --no-build app app-bad
 The `app-bad` service has an opt-in `comparison` profile so a plain `up` does not
 start it accidentally; explicitly naming the service enables it for that command.
 
-### Traffic generator: automatic weather requests
+### Browser Start/Stop: visible traffic for the demo
+
+Both images include the same frontend with **Start traffic** and **Stop traffic**.
+Traffic is **off when the page opens**. The metadata request to `/api/info` does
+not request a forecast or advance the weather counter.
+
+1. Open the app and press **Start traffic**. This tab sends real `/hello-world`
+   requests to the same address you opened, targeting up to 10 requests/second.
+2. Watch the current forecast, separate v1/v2 counters, HTTP 500 count and the
+   latest twelve responses. The last failure stays visible after recovery.
+3. Press **Stop traffic**. No further requests are scheduled; any in-flight browser
+   request is cancelled, without counting that cancellation as an app failure.
+   The server may already have processed that request, so server totals can differ.
+4. Start again to continue the same browser session, or use **Refresh weather**
+   for one request while traffic is stopped. Reloading clears the browser counters
+   and leaves automatic traffic off again; it does not reset the server counters.
+
+Only one weather request is in flight at a time, with a two-second timeout.
+HTTP 500, connection errors and timeouts do not stop the loop. Slow responses
+reduce the actual rate. Connection/data failures appear separately from HTTP 500.
+Keep the tab open and active: browsers can throttle timers in background tabs.
+The controls affect **this tab only**, not other tabs or the Docker/shell loader.
+Use one traffic source during rehearsal unless you deliberately want combined load.
+
+The weather endpoint sends `Connection: close` for this HTTP/1.1 demo, allowing
+subsequent browser requests to use new connections through the Kubernetes Service.
+This helps avoid repeatedly using one pod; it does not guarantee an exact traffic
+split and is not a replacement for a traffic router. A proxy or HTTP/2 setup can
+behave differently. Closing each connection is a demo tradeoff, not a performance
+recommendation for a production API.
+
+**Local check:** on port 8082, Start should produce only v1/200 responses. On port
+8083, it should produce v2 responses with roughly half HTTP 500. Stop should freeze
+the browser counters. For this check, stop the separate loader using menu **9**
+and use one active tab per version. These are two isolated apps, not a rollback.
+
+**Kubernetes rehearsal:** open the shared app URL on port 8080 and start traffic
+before deploying the bad candidate. Initially responses should be v1; during the
+canary, v1 and v2 coexist; after a successful automatic rollback, new responses
+should return to v1. This requires the cluster and analysis to be configured
+correctly. The frontend does not trigger deployment, choose a version, or declare
+that a rollback succeeded. Old error counts deliberately remain visible.
+Keep traffic running during the analysis: its minimum-traffic safeguard still
+needs to be addressed in the infrastructure work.
+
+After pulling the configuration/frontend changes, rebuild **both** images with
+menu **2**, then recreate/update the local containers with **3**. Reopen the pages
+(use a hard refresh if old assets are cached). For Kind, rebuilding local images
+is not enough: reload both images into the cluster and replace the running pods.
+The deploy scripts can reuse existing image tags; they do not automatically
+rebuild images after source changes.
+
+### Separate Docker traffic generator
 
 The typed generator in `scripts/load-generator` is adapted from our earlier demo.
 Node and TypeScript run **inside Docker**, with no host installation required.
@@ -133,8 +185,10 @@ the rollout's routing setup determines how traffic is distributed.
 
 **While the generator runs, browser clicks need not alternate 200/500 on v2.**
 Both sources advance the same per-instance weather counter. Browser history
-still counts only your clicks, and refreshes only when you click its button.
-Stop traffic with **9** to inspect the alternation manually again; the first
+counts only requests made by that browser tab (manual or automatic), not the
+separate generator's requests.
+Stop the separate generator with **9** and browser traffic with **Stop traffic**
+to inspect the alternation manually again; the first
 manual request may be 200 or 500 depending on where the counter stopped.
 
 #### Targeting the Kubernetes demo
@@ -177,8 +231,17 @@ The request interval, timeout and report interval are configurable in the
 
 #### Generator verification
 
-Menu **1** runs the two existing Java tests, followed by one Node integration
-test for the generator. To run only the new generator test:
+Menu **1** runs two Java tests, four browser-script tests and one Node integration
+test for the separate generator, all inside Docker. The browser-script tests use
+controlled responses and timers to check Start/Stop, recovery after HTTP 500 and
+timeouts, bounded history, cancellation and restart. They are not a visual browser
+test or a Kubernetes traffic-distribution test. To run just these controls tests:
+
+```powershell
+docker compose -f compose.yaml run --build --rm frontend-test
+```
+
+Expected: `tests 4`, `pass 4`, `fail 0`. To run only the separate generator test:
 
 ```powershell
 docker compose -f compose.yaml run --build --rm loadgen-test
@@ -217,8 +280,8 @@ summary, followed by `BUILD SUCCESS`.
 
 The two integration tests start a real HTTP server on a temporary internal port:
 
-- Healthy: the page/assets load, six requests return the correct HTTP 200 JSON,
-  and health stays UP.
+- Healthy: the real default configuration (without overriding it in the test)
+  serves the page/assets, six correct HTTP 200 JSON responses, and health stays UP.
 - Faulty: requests alternate 200/500/200/500/200/500; page, info and health still
   work after errors; Prometheus exposes three successes and three errors tagged
   `version="v2"`; a subsequent seventh request succeeds. Metric collection and
@@ -250,8 +313,9 @@ Open **http://localhost:8082** after Spring Boot has started. The port is separa
 from the existing Kubernetes app (8080) and Argo CD (8081).
 
 Click **Check the weather** and then **Refresh weather** several times. Every
-response should show `v1`, `200 OK`, cloudy and 3 °C. There is no automatic weather
-polling: each button click sends one weather request.
+response should show `v1`, `200 OK`, cloudy and 3 °C. Automatic weather requests
+are off initially; **Start traffic** enables them. Each manual weather click sends
+one request while automatic traffic is stopped.
 
 If the page is not yet reachable, wait a moment. To inspect startup or errors:
 

@@ -38,6 +38,9 @@ public class HelloController {
 
         // A deliberate HTTP error response, not a crash or a failed health check.
         return ResponseEntity.status(failed ? HttpStatus.INTERNAL_SERVER_ERROR : HttpStatus.OK)
+                // The local HTTP/1.1 demo uses a connection-level Kubernetes Service.
+                // Let the next browser request open a new connection and sample another pod.
+                .header("Connection", "close")
                 .cacheControl(CacheControl.noStore())
                 .body(weather);
     }

@@ -36,10 +36,27 @@
 
     <div class="actions"><button id="refresh" type="button">Check the weather <span aria-hidden="true">↗</span></button><p>Sun and 30 °C? We might have a problem.</p></div>
 
+    <section class="traffic-panel" aria-labelledby="traffic-title">
+      <div class="request-heading"><h2 id="traffic-title">Live traffic</h2><span id="traffic-status" role="status">Stopped</span></div>
+      <p>Watch real weather requests while a release changes.</p>
+      <div class="traffic-controls">
+        <button id="start-traffic" type="button">Start traffic</button>
+        <button id="stop-traffic" type="button" disabled>Stop traffic</button>
+      </div>
+      <p class="session-note">Target: <span id="traffic-target">this page's address</span> · up to 10 requests/s.<br>Keep this tab open and active. Stop controls this tab only.</p>
+    </section>
+
     <section class="request-panel" aria-label="Request history">
       <div class="request-heading"><h2>This browser session</h2><span id="totals">0 successful · 0 failed</span></div>
-      <ol id="history" class="history" aria-label="Last six responses"><li class="history-empty">Your latest responses will appear here.</li></ol>
-      <p class="session-note">Counts include your clicks only. Server request numbers are per app instance.</p>
+      <dl class="request-stats">
+        <div><dt>v1 responses</dt><dd id="count-v1">0</dd></div>
+        <div><dt>v2 responses</dt><dd id="count-v2">0</dd></div>
+        <div><dt>HTTP 500</dt><dd id="count-500">0</dd></div>
+        <div><dt>Other failures</dt><dd id="count-other">0</dd></div>
+      </dl>
+      <p class="last-failure" id="last-failure">No failures observed in this browser session.</p>
+      <ol id="history" class="history" aria-label="Last twelve responses"><li class="history-empty">Your latest responses will appear here.</li></ol>
+      <p class="session-note">Counts include this tab's clicks and automatic requests only. History and the last failure remain after Stop. Reloading resets this browser session; server counters are separate.</p>
     </section>
 
     <footer><span>Simulated weather. Real HTTP responses.</span><span>No external weather service.</span></footer>

@@ -9,8 +9,8 @@ import org.springframework.http.HttpStatus;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = {"demo.version=v1", "demo.failure-every=0"})
+// Exercise the real default configuration rather than hiding regressions with test overrides.
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class HealthyWeatherTest {
     @Autowired
     private TestRestTemplate http;
@@ -27,6 +27,7 @@ class HealthyWeatherTest {
             var response = http.getForEntity("/hello-world", HelloController.WeatherResponse.class);
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
             assertThat(response.getHeaders().getCacheControl()).contains("no-store");
+            assertThat(response.getHeaders().getFirst("Connection")).isEqualTo("close");
             assertThat(response.getBody()).isEqualTo(new HelloController.WeatherResponse(
                     "v1", i, "Stockholm", "Cloudy", 3, "ok",
                     "Everything looks normal. Welcome to Stockholm."));

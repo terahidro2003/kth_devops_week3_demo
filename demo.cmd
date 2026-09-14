@@ -11,7 +11,7 @@ echo.
 echo ======================================================
 echo   STOCKHOLM WEATHER - Local rehearsal
 echo ======================================================
-echo   1. Run app and generator tests in Docker
+echo   1. Run app, frontend and generator tests in Docker
 echo   2. Build both images: v1 and v2
 echo   3. Start v1 and v2 together, without rebuilding
 echo   4. Open both pages in the browser
@@ -40,6 +40,8 @@ echo.
 echo Tests start temporary apps inside Docker and check their responses.
 echo They do not start the website on ports 8082 or 8083.
 docker compose -f compose.yaml run --build --rm test
+if errorlevel 1 goto command_failed
+docker compose -f compose.yaml run --build --rm frontend-test
 if errorlevel 1 goto command_failed
 docker compose -f compose.yaml run --build --rm loadgen-test
 if errorlevel 1 goto command_failed
