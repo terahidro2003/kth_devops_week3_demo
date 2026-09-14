@@ -10,7 +10,7 @@
     - quickly show ArgoCD UI (10s)
     - we can go through important configs
     - deploy "bad" version
-    - show that "bad" version gets deployed to 20% of nodes (so 2 nodes)
+    - show that "bad" version gets ~50% of traffic (2 of 4 pods)
     - show bad metrics
     - show auto rollback
     - show that its relevant to devops

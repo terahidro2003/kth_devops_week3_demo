@@ -13,16 +13,14 @@ RUN mvn -q -DskipTests package
 
 FROM eclipse-temurin:17-jre AS runtime
 WORKDIR /app
-# 0 = good; bad image is built with --build-arg DEMO_DELAY_MS=1500
-ARG DEMO_DELAY_MS=0
-ENV DEMO_DELAY_MS=${DEMO_DELAY_MS}
 COPY --from=build /workspace/target/demo-0.0.1-SNAPSHOT.jar app.jar
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "app.jar"]
 
+# Faulty canary: every 2nd /hello-world request returns HTTP 500.
 FROM runtime AS bad
 ENV APP_VERSION=v2 FAILURE_EVERY=2
 
-# Keep the default build healthy, including the existing infra/scripts/up.sh.
+# Healthy default (also used by infra/scripts when --target is omitted).
 FROM runtime AS good
 ENV APP_VERSION=v1 FAILURE_EVERY=0

@@ -1,4 +1,5 @@
-# Fail the canary (and trigger Rollouts abort/rollback) if p95 latency on canary pods is too high.
+# Fail the canary if canary pods exceed an absolute /hello-world 5xx budget.
+# Demo-friendly: allow up to 10 failed requests in the sample window, then abort.
 apiVersion: argoproj.io/v1alpha1
 kind: AnalysisTemplate
 metadata:
@@ -7,7 +8,7 @@ spec:
   args:
     - name: latest-hash
   metrics:
-    - name: p95-latency
+    - name: hello-world-error-budget
       # Let canary pods come up and receive a bit of load before first sample.
       initialDelay: 30s
       interval: 20s
@@ -15,19 +16,30 @@ spec:
       failureLimit: 2
       inconclusiveLimit: 5
       consecutiveErrorLimit: 10
-      # vector(-1) sentinel = no samples yet → inconclusive (not Error / not pass).
-      successCondition: result[0] >= 0 && result[0] < 0.2
-      failureCondition: result[0] >= 0.2
+      # vector(-1) = no canary traffic yet → inconclusive (not pass / not fail).
+      # Budget: ≤10 HTTP 5xx in the last 1m on canary pods is OK; more fails the step.
+      # good (FAILURE_EVERY=0) stays at 0; bad (~50% of canary traffic) blows past 10 quickly.
+      successCondition: result[0] >= 0 && result[0] <= 10
+      failureCondition: result[0] > 10
       provider:
         prometheus:
           address: http://prometheus.default.svc:9090
           query: |
             (
-              histogram_quantile(
-                0.95,
-                sum by (le) (
-                  rate(
-                    http_server_requests_seconds_bucket{
+              sum(
+                increase(
+                  http_server_requests_seconds_count{
+                    uri="/hello-world",
+                    status=~"5..",
+                    pod=~"demo-{{args.latest-hash}}-.*"
+                  }[1m]
+                )
+              )
+              or
+              (
+                0 * sum(
+                  increase(
+                    http_server_requests_seconds_count{
                       uri="/hello-world",
                       pod=~"demo-{{args.latest-hash}}-.*"
                     }[1m]
