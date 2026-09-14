@@ -1,2 +1,5 @@
+# Keep launchers readable by their native interpreters on either checkout OS.
+demo.command text eol=lf
+demo.cmd text eol=crlf
 *.sh text eol=lf
 *.bash text eol=lf
