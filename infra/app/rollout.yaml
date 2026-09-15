@@ -1,4 +1,3 @@
-# Progressive delivery controller: canary at 20% weight, Prometheus SLO analysis, auto-rollback.
 apiVersion: argoproj.io/v1alpha1
 kind: Rollout
 metadata:
@@ -19,19 +18,9 @@ spec:
     spec:
       nodeSelector:
         role: app
-      affinity:
-        podAntiAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-            - weight: 100
-              podAffinityTerm:
-                labelSelector:
-                  matchLabels:
-                    app: demo
-                topologyKey: kubernetes.io/hostname
       containers:
         - name: demo
-          # weather:v1 (good) / weather:v2 (bad) bake APP_VERSION + FAILURE_EVERY; do not override here.
-          image: weather:v1
+          image: demo:v1
           imagePullPolicy: Never
           ports:
             - name: http
@@ -40,13 +29,13 @@ spec:
             httpGet:
               path: /actuator/health
               port: http
-            initialDelaySeconds: 10
-            periodSeconds: 5
+            initialDelaySeconds: 3
+            periodSeconds: 2
           livenessProbe:
             httpGet:
               path: /actuator/health
               port: http
-            initialDelaySeconds: 20
+            initialDelaySeconds: 15
             periodSeconds: 10
           resources:
             requests:
@@ -56,11 +45,11 @@ spec:
               memory: 512Mi
   strategy:
     canary:
-      # Rollouts pins these Services to canary vs stable ReplicaSets for metrics + traffic share.
+      # Scale canary to 0 immediately on abort (default 30s leaves slow pods on Service demo).
+      abortScaleDownDelaySeconds: 0
       canaryService: demo-canary
       stableService: demo-stable
       steps:
-        # ~20% of replicas (1 of 5) serve the new version; NodePort traffic follows the same ratio.
         - setWeight: 20
         - analysis:
             templates:
@@ -69,5 +58,4 @@ spec:
               - name: latest-hash
                 valueFrom:
                   podTemplateHashValue: Latest
-        # SLO held → promote to 100% (replace remaining stable pods).
         - setWeight: 100

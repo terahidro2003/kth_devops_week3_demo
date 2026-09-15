@@ -1,5 +1,5 @@
-# Fail the canary if canary pods exceed an absolute /hello-world 5xx budget.
-# Demo-friendly: allow up to 10 failed requests in the sample window, then abort.
+# Fail canary when p99 latency on canary pods exceeds 1s.
+# No traffic → vector(-1) → inconclusive (Rollouts requires count >= inconclusiveLimit).
 apiVersion: argoproj.io/v1alpha1
 kind: AnalysisTemplate
 metadata:
@@ -8,41 +8,30 @@ spec:
   args:
     - name: latest-hash
   metrics:
-    - name: hello-world-error-budget
-      # Let canary pods come up and receive a bit of load before first sample.
-      initialDelay: 30s
-      interval: 20s
-      count: 8
-      failureLimit: 2
-      inconclusiveLimit: 5
+    - name: hello-world-latency
+      # failureLimit:1 fails fast under load; count==inconclusiveLimit ≈ 2 min talk window w/o traffic.
+      initialDelay: 5s
+      interval: 5s
+      count: 24
+      failureLimit: 1
+      inconclusiveLimit: 24
       consecutiveErrorLimit: 10
-      # vector(-1) = no canary traffic yet → inconclusive (not pass / not fail).
-      # Budget: ≤10 HTTP 5xx in the last 1m on canary pods is OK; more fails the step.
-      # good (FAILURE_EVERY=0) stays at 0; bad (~50% of canary traffic) blows past 10 quickly.
-      successCondition: result[0] >= 0 && result[0] <= 10
-      failureCondition: result[0] > 10
+      # -1 = no samples yet (inconclusive). Pass if 0 <= p99 <= 1s.
+      successCondition: result[0] >= 0 && result[0] <= 1
+      failureCondition: result[0] > 1
       provider:
         prometheus:
           address: http://prometheus.default.svc:9090
           query: |
             (
-              sum(
-                increase(
-                  http_server_requests_seconds_count{
-                    uri="/hello-world",
-                    status=~"5..",
-                    pod=~"demo-{{args.latest-hash}}-.*"
-                  }[1m]
-                )
-              )
-              or
-              (
-                0 * sum(
-                  increase(
-                    http_server_requests_seconds_count{
+              histogram_quantile(
+                0.99,
+                sum by (le) (
+                  rate(
+                    http_server_requests_seconds_bucket{
                       uri="/hello-world",
                       pod=~"demo-{{args.latest-hash}}-.*"
-                    }[1m]
+                    }[30s]
                   )
                 )
               )
