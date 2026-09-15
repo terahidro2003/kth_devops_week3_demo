@@ -17,10 +17,10 @@ COPY --from=build /workspace/target/demo-0.0.1-SNAPSHOT.jar app.jar
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "app.jar"]
 
-# Faulty canary: every 2nd /hello-world request returns HTTP 500.
+# Slow canary: artificial delay on /hello-world only (not health/info).
 FROM runtime AS bad
-ENV APP_VERSION=v2 FAILURE_EVERY=2
+ENV DEMO_VERSION=v2 DEMO_LATENCY_MS=1500
 
 # Healthy default (also used by infra/scripts when --target is omitted).
 FROM runtime AS good
-ENV APP_VERSION=v1 FAILURE_EVERY=0
+ENV DEMO_VERSION=v1 DEMO_LATENCY_MS=0

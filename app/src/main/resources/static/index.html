@@ -3,46 +3,74 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#143c46">
-  <title>Stockholm Weather</title>
+  <meta name="theme-color" content="#1a3a4a">
+  <title>Canary Demo</title>
   <link rel="stylesheet" href="/style.css">
   <script src="/app.js" defer></script>
 </head>
 <body>
   <main class="shell">
     <header class="masthead">
-      <a class="brand" href="/" aria-label="Stockholm Weather home"><span class="brand-mark" aria-hidden="true">S°</span> STOCKHOLM WEATHER</a>
-      <span class="demo-label">KTH · DevOps demo</span>
+      <a class="brand" href="/" aria-label="Canary Demo home"><span class="brand-mark" aria-hidden="true">D</span> CANARY DEMO</a>
+      <span class="demo-label">KTH · DevOps</span>
     </header>
 
     <section class="intro">
-      <p class="eyebrow">59.3293° N &nbsp; 18.0686° E</p>
-      <h1>A very Swedish forecast.</h1>
-      <p class="intro-copy">Cold. Cloudy. Comfortably predictable.<br>Until a new release brings a little too much sunshine.</p>
+      <p class="eyebrow">Request latency demo</p>
+      <h1>See which version answered.</h1>
+      <p class="intro-copy">v1 is fast. v2 sleeps before responding. Watch status, latency, and history while you load the endpoint.</p>
     </section>
 
-    <section class="weather-card" data-weather="cloudy" aria-label="Weather forecast">
-      <div class="card-top"><span class="location">Stockholm <span>/ Sweden</span></span><span class="version" id="version">Connecting…</span></div>
-      <div class="forecast" id="forecast" aria-live="polite" aria-atomic="true">
-        <div class="weather-art" aria-hidden="true">
-          <svg class="cloud-art" viewBox="0 0 240 170"><circle class="pale-sun" cx="162" cy="57" r="35"/><path class="cloud-back" d="M75 109a33 33 0 0 1 7-65 43 43 0 0 1 79 10 28 28 0 1 1 14 55Z"/><path class="cloud-front" d="M52 131a28 28 0 0 1 4-56 39 39 0 0 1 74-3 30 30 0 1 1 16 59Z"/><path class="rain" d="m76 145-5 11m35-11-5 11m35-11-5 11"/></svg>
-          <svg class="sun-art" viewBox="0 0 240 170"><g class="sun-rays"><path d="M120 9v17m0 118v17M44 85H27m186 0h-17M66 31l12 12m84 84 12 12M66 139l12-12m84-84 12-12"/></g><circle class="sun-disc" cx="120" cy="85" r="43"/></svg>
-        </div>
-        <div class="forecast-values"><div class="temperature"><span id="temperature">—</span><span class="unit">°C</span></div><h2 id="condition">Let's check the weather.</h2></div>
-        <p class="weather-message" id="message">Your first Stockholm forecast is one click away.</p>
+    <section class="status-card" data-state="idle" aria-label="Last response">
+      <div class="card-top">
+        <span class="label">Last response</span>
+        <span class="version" id="version">Connecting…</span>
       </div>
-      <div class="card-bottom"><span class="response-badge" id="response">No request yet</span><span id="request-detail">Simulated winter forecast</span></div>
+      <div class="status-grid" id="status" aria-live="polite" aria-atomic="true">
+        <div class="stat">
+          <span class="stat-label">HTTP</span>
+          <span class="stat-value" id="http-status">—</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Latency</span>
+          <span class="stat-value" id="latency">—</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Outcome</span>
+          <span class="stat-value" id="outcome">—</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Request #</span>
+          <span class="stat-value" id="request-number">—</span>
+        </div>
+      </div>
+      <div class="card-bottom">
+        <span class="response-badge" id="response">No request yet</span>
+        <span id="request-detail">Send a request or start load</span>
+      </div>
     </section>
 
-    <div class="actions"><button id="refresh" type="button">Check the weather <span aria-hidden="true">↗</span></button><p>Sun and 30 °C? We might have a problem.</p></div>
+    <div class="actions">
+      <button id="refresh" type="button">Send request</button>
+      <button id="load-toggle" type="button" class="secondary" aria-pressed="false">Start load</button>
+      <p id="load-hint">Load sends continuous requests to /hello-world (~10/s).</p>
+    </div>
 
     <section class="request-panel" aria-label="Request history">
-      <div class="request-heading"><h2>This browser session</h2><span id="totals">0 successful · 0 failed</span></div>
-      <ol id="history" class="history" aria-label="Last six responses"><li class="history-empty">Your latest responses will appear here.</li></ol>
-      <p class="session-note">Counts include your clicks only. Server request numbers are per app instance.</p>
+      <div class="request-heading">
+        <h2>This browser session</h2>
+        <span id="totals">0 ok · 0 failed</span>
+      </div>
+      <ol id="history" class="history" aria-label="Last six responses">
+        <li class="history-empty">Your latest responses will appear here.</li>
+      </ol>
+      <p class="session-note">Counts are from this browser only. Server request numbers are per app instance.</p>
     </section>
 
-    <footer><span>Simulated weather. Real HTTP responses.</span><span>No external weather service.</span></footer>
+    <footer>
+      <span>Plain latency demo. Real HTTP responses.</span>
+      <span>No external dependencies.</span>
+    </footer>
   </main>
 </body>
 </html>

@@ -1,10 +1,10 @@
 package com.example.demo;
 
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.CacheControl;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -13,44 +13,39 @@ import org.springframework.web.bind.annotation.RestController;
 public class HelloController {
 
     private final String version;
-    private final int failureEvery;
+    private final long latencyMs;
     private final AtomicLong requests = new AtomicLong();
 
     public HelloController(@Value("${demo.version}") String version,
-                           @Value("${demo.failure-every}") int failureEvery) {
-        if (failureEvery < 0) {
-            throw new IllegalArgumentException("FAILURE_EVERY must be zero or positive");
+                           @Value("${demo.latency-ms}") long latencyMs) {
+        if (latencyMs < 0) {
+            throw new IllegalArgumentException("demo.latency-ms must be zero or positive");
         }
         this.version = version;
-        this.failureEvery = failureEvery;
+        this.latencyMs = latencyMs;
     }
 
-    // Keep the existing route so the provisioned Grafana queries still match.
+    // Keep the existing route so Grafana / analysis queries still match.
     @GetMapping("/hello-world")
-    public ResponseEntity<WeatherResponse> helloWorld() {
+    public ResponseEntity<DemoResponse> helloWorld() throws InterruptedException {
         long requestNumber = requests.incrementAndGet();
-        boolean failed = failureEvery > 0 && requestNumber % failureEvery == 0;
-        WeatherResponse weather = new WeatherResponse(
-                version, requestNumber, "Stockholm", failed ? "Sunny" : "Cloudy",
-                failed ? 30 : 3, failed ? "error" : "ok",
-                failed ? "Something is clearly wrong. This cannot be Stockholm."
-                        : "Everything looks normal. Welcome to Stockholm.");
-
-        // A deliberate HTTP error response, not a crash or a failed health check.
-        return ResponseEntity.status(failed ? HttpStatus.INTERNAL_SERVER_ERROR : HttpStatus.OK)
+        long started = System.nanoTime();
+        if (latencyMs > 0) {
+            Thread.sleep(latencyMs);
+        }
+        long observedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started);
+        return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
-                .body(weather);
+                .body(new DemoResponse(version, requestNumber, observedMs, "ok"));
     }
 
     @GetMapping("/api/info")
     public ResponseEntity<AppInfo> info() {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
-                .body(new AppInfo(version, failureEvery));
+                .body(new AppInfo(version, latencyMs));
     }
 
-    public record WeatherResponse(String version, long requestNumber, String city,
-                                  String condition, int temperatureC, String outcome,
-                                  String message) {}
+    public record DemoResponse(String version, long requestNumber, long latencyMs, String outcome) {}
 
-    public record AppInfo(String version, int failureEvery) {}
+    public record AppInfo(String version, long latencyMs) {}
 }

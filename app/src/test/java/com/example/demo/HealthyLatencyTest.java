@@ -10,26 +10,30 @@ import org.springframework.http.HttpStatus;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = {"demo.version=v1", "demo.failure-every=0"})
-class HealthyWeatherTest {
+        properties = {"demo.version=v1", "demo.latency-ms=0"})
+class HealthyLatencyTest {
     @Autowired
     private TestRestTemplate http;
 
     @Test
-    void healthyAppServesThePageAndRepeatedColdForecasts() {
+    void healthyAppServesThePageAndFastHelloResponses() {
         var page = http.getForEntity("/", String.class);
         assertThat(page.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(page.getBody()).contains("Stockholm Weather", "id=\"refresh\"");
+        assertThat(page.getBody()).contains("Canary Demo", "id=\"refresh\"", "id=\"load-toggle\"");
         assertThat(http.getForEntity("/app.js", String.class).getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(http.getForEntity("/style.css", String.class).getStatusCode()).isEqualTo(HttpStatus.OK);
 
         for (int i = 1; i <= 6; i++) {
-            var response = http.getForEntity("/hello-world", HelloController.WeatherResponse.class);
+            long started = System.nanoTime();
+            var response = http.getForEntity("/hello-world", HelloController.DemoResponse.class);
+            long elapsedMs = (System.nanoTime() - started) / 1_000_000L;
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
             assertThat(response.getHeaders().getCacheControl()).contains("no-store");
-            assertThat(response.getBody()).isEqualTo(new HelloController.WeatherResponse(
-                    "v1", i, "Stockholm", "Cloudy", 3, "ok",
-                    "Everything looks normal. Welcome to Stockholm."));
+            assertThat(response.getBody().version()).isEqualTo("v1");
+            assertThat(response.getBody().requestNumber()).isEqualTo(i);
+            assertThat(response.getBody().outcome()).isEqualTo("ok");
+            assertThat(response.getBody().latencyMs()).isLessThan(200);
+            assertThat(elapsedMs).isLessThan(500);
         }
         assertThat(http.getForObject("/api/info", HelloController.AppInfo.class))
                 .isEqualTo(new HelloController.AppInfo("v1", 0));
