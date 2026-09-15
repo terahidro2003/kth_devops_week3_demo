@@ -28,10 +28,10 @@ fi
 
 while true; do
     printf '\n======================================================\n'
-    printf '  STOCKHOLM WEATHER - Local rehearsal\n'
+    printf '  CANARY DEMO - Local rehearsal\n'
     printf '======================================================\n'
     printf '  1. Run app and generator tests in Docker\n'
-    printf '  2. Build both images: v1 and v2\n'
+    printf '  2. Build both images: demo:v1 and demo:v2\n'
     printf '  3. Start v1 and v2 together, without rebuilding\n'
     printf '  4. Open both pages in the browser\n'
     printf '  5. Show recent app logs\n'
@@ -51,7 +51,7 @@ while true; do
             fi
             ;;
         2)
-            printf '\nBuilding weather:v1 and weather:v2. This does not start the apps.\n'
+            printf '\nBuilding demo:v1 and demo:v2. This does not start the apps.\n'
             if run_docker build app app-bad; then
                 printf '\nImages ready. Choose 3 to start both apps.\n'
             fi
@@ -59,8 +59,8 @@ while true; do
         3)
             if run_docker up -d --no-build app app-bad; then
                 printf '\nContainers started. Java may still need a few seconds.\n'
-                printf 'v1: http://localhost:8082 - always cold and cloudy\n'
-                printf 'v2: http://localhost:8083 - sunshine and HTTP 500 every second request\n'
+                printf 'v1: http://localhost:8082 - fast responses (latency-ms=0)\n'
+                printf 'v2: http://localhost:8083 - delayed responses (latency-ms=1500)\n'
                 printf 'Choose 4 to open the pages, or 5 to inspect startup logs.\n'
                 printf 'This local comparison does not split traffic or perform rollbacks.\n'
             fi
@@ -85,8 +85,8 @@ while true; do
             ;;
         7)
             printf '\nSend approximately 10 requests per second to ONE destination:\n'
-            printf '  1. Local v1 - always HTTP 200\n'
-            printf '  2. Local v2 - approximately 50 percent errors\n'
+            printf '  1. Local v1 - fast HTTP 200\n'
+            printf '  2. Local v2 - delayed HTTP 200\n'
             printf '  3. Kubernetes cluster - shared address on port 8080\n'
             printf '  0. Return to menu\n'
             printf 'Destination: '

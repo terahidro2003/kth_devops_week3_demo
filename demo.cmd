@@ -9,10 +9,10 @@ if errorlevel 1 goto missing_docker
 :menu
 echo.
 echo ======================================================
-echo   STOCKHOLM WEATHER - Local rehearsal
+echo   CANARY DEMO - Local rehearsal
 echo ======================================================
 echo   1. Run app and generator tests in Docker
-echo   2. Build both images: v1 and v2
+echo   2. Build both images: demo:v1 and demo:v2
 echo   3. Start v1 and v2 together, without rebuilding
 echo   4. Open both pages in the browser
 echo   5. Show recent app logs
@@ -51,7 +51,7 @@ goto menu
 
 :build_images
 echo.
-echo Building weather:v1 and weather:v2. This does not start the apps.
+echo Building demo:v1 and demo:v2. This does not start the apps.
 docker compose -f compose.yaml build app app-bad
 if errorlevel 1 goto command_failed
 echo.
@@ -67,8 +67,8 @@ docker compose -f compose.yaml up -d --no-build app app-bad
 if errorlevel 1 goto command_failed
 echo.
 echo Containers started. Java may still need a few seconds.
-echo v1: http://localhost:8082 - always cold and cloudy
-echo v2: http://localhost:8083 - sunshine and HTTP 500 every second request
+echo v1: http://localhost:8082 - fast responses ^(latency-ms=0^)
+echo v2: http://localhost:8083 - delayed responses ^(latency-ms=1500^)
 echo Choose 4 to open the pages, or 5 to inspect startup logs.
 echo This local comparison does not split traffic or perform rollbacks.
 echo Press any key to continue...
@@ -104,8 +104,8 @@ goto menu
 :traffic_menu
 echo.
 echo Send approximately 10 requests per second to ONE destination.
-echo   1. Local v1 - always HTTP 200
-echo   2. Local v2 - approximately 50 percent errors
+echo   1. Local v1 - fast HTTP 200
+echo   2. Local v2 - delayed HTTP 200
 echo   3. Kubernetes cluster - shared address on port 8080
 echo   0. Return to menu
 choice /C 1230 /N /M "Destination: "

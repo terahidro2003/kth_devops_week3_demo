@@ -14,7 +14,7 @@ if (!['http:', 'https:'].includes(target.protocol)) {
   throw new Error('TARGET_URL must use http or https.');
 }
 const intervalMs = integerSetting('REQUEST_INTERVAL_MS', 100, 10, 60000);
-const timeoutMs = integerSetting('REQUEST_TIMEOUT_MS', 2000, 100, 60000);
+const timeoutMs = integerSetting('REQUEST_TIMEOUT_MS', 5000, 100, 60000);
 const reportMs = integerSetting('REPORT_INTERVAL_MS', 5000, 100, 60000);
 
 const shutdown = new AbortController();
@@ -80,7 +80,7 @@ try {
         headers: { Connection: 'close' },
         signal: AbortSignal.any([shutdown.signal, AbortSignal.timeout(timeoutMs)]),
       });
-      // HTTP 500 is a completed response. Consume its body and keep sending traffic.
+      // Any HTTP status is a completed response. Consume body and keep sending.
       await response.text();
       record(response.status);
     } catch {
