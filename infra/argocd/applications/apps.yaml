@@ -1,35 +1,26 @@
-# Argo CD Application CRs — each one tells Argo CD to sync a Git folder into the cluster.
-# up.sh replaces GIT_REPO_URL_PLACEHOLDER with GIT_REPO_URL or `git remote get-url origin`.
-# Without a repo URL, up.sh skips these and uses kubectl apply instead.
+# up.sh replaces GIT_REPO_URL_PLACEHOLDER with GIT_REPO_URL or git remote origin.
 ---
-# Application = a GitOps "desired state" pointer (Git path → cluster namespace)
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: demo # Shown in the Argo CD UI
-  namespace: argocd # Applications always live in the argocd namespace
+  name: demo
+  namespace: argocd
   finalizers:
-    # On delete: Argo CD removes the synced cluster resources first (avoids orphaned Deployments/Services)
     - resources-finalizer.argocd.argoproj.io
 spec:
-  project: default # Argo CD project (RBAC / allowed destinations); "default" allows in-cluster deploy
+  project: default
   source:
-    # Git repository Argo CD clones (filled in by up.sh)
     repoURL: GIT_REPO_URL_PLACEHOLDER
-    targetRevision: HEAD # Git revision to sync (branch tip / tag / commit SHA)
-    path: infra/app # Folder inside the repo that contains the Kubernetes manifests
+    targetRevision: HEAD
+    path: infra/app
   destination:
-    # Deploy into this same kind cluster (in-cluster Kubernetes API)
     server: https://kubernetes.default.svc
-    namespace: default # Target namespace for the manifests
+    namespace: default
+  # Manual sync during live demos so kubectl image set is not fought by selfHeal.
   syncPolicy:
-    automated:
-      prune: true # Delete cluster resources that were removed from Git
-      selfHeal: true # Revert manual kubectl edits to match Git again
     syncOptions:
-      - CreateNamespace=true # Create the destination namespace if it does not exist
+      - CreateNamespace=true
 ---
-# Same pattern as demo — syncs Prometheus manifests from Git
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -42,7 +33,7 @@ spec:
   source:
     repoURL: GIT_REPO_URL_PLACEHOLDER
     targetRevision: HEAD
-    path: infra/monitoring/prometheus # Manifests for Prometheus ConfigMap/Deployment/Service/RBAC
+    path: infra/monitoring/prometheus
   destination:
     server: https://kubernetes.default.svc
     namespace: default
@@ -53,7 +44,6 @@ spec:
     syncOptions:
       - CreateNamespace=true
 ---
-# Same pattern as demo — syncs Grafana manifests from Git
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -66,7 +56,7 @@ spec:
   source:
     repoURL: GIT_REPO_URL_PLACEHOLDER
     targetRevision: HEAD
-    path: infra/monitoring/grafana # Manifests for Grafana + datasource/dashboard ConfigMaps
+    path: infra/monitoring/grafana
   destination:
     server: https://kubernetes.default.svc
     namespace: default
