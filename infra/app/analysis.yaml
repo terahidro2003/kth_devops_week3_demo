@@ -1,22 +1,17 @@
-# Fail canary when p99 latency on canary pods exceeds 1s.
-# No traffic → vector(-1) → inconclusive (Rollouts requires count >= inconclusiveLimit).
 apiVersion: argoproj.io/v1alpha1
 kind: AnalysisTemplate
 metadata:
-  name: canary-slo
+  name: canary-release-analysis
 spec:
   args:
     - name: latest-hash
   metrics:
     - name: hello-world-latency
-      # failureLimit:1 fails fast under load; count==inconclusiveLimit ≈ 2 min talk window w/o traffic.
       initialDelay: 5s
-      interval: 5s
-      count: 24
+      interval: 1s
       failureLimit: 1
-      inconclusiveLimit: 24
-      consecutiveErrorLimit: 10
-      # -1 = no samples yet (inconclusive). Pass if 0 <= p99 <= 1s.
+      inconclusiveLimit: 20 # allow up to 20 seconds with no metrics
+      # -1 = no metric yet, OK if <= 1s (p99), fail if > 1s.
       successCondition: result[0] >= 0 && result[0] <= 1
       failureCondition: result[0] > 1
       provider:

@@ -99,6 +99,23 @@ kubectl -n argocd rollout status deployment/argocd-server --timeout=300s
 kubectl -n argocd rollout status deployment/argocd-repo-server --timeout=300s
 kubectl -n argocd rollout status statefulset/argocd-application-controller --timeout=300s
 
+echo "==> Waiting for Argo CD initial admin password..."
+ARGOCD_PASSWORD=""
+for _ in $(seq 1 60); do
+  ARGOCD_PASSWORD="$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' 2>/dev/null | base64 -d 2>/dev/null || true)"
+  if [[ -n "${ARGOCD_PASSWORD}" ]]; then
+    break
+  fi
+  sleep 2
+done
+echo
+echo "Argo CD is ready — you can log in while the rest of the stack comes up:"
+echo "  URL:   https://localhost:8081"
+echo "  User:  admin"
+echo "  Pass:  ${ARGOCD_PASSWORD:-<secret argocd-initial-admin-secret not ready yet>}"
+echo "  (accept the self-signed certificate warning)"
+echo
+
 echo "==> Ignoring AnalysisRun health in Argo CD (failed canaries otherwise leave App Degraded)..."
 kubectl -n argocd patch configmap argocd-cm --type merge \
   -p '{"data":{"resource.customizations.health.argoproj.io_AnalysisRun":"hs = {}\nhs.status = \"Healthy\"\nhs.message = \"Ignored: canary gate is reflected on the Rollout\"\nreturn hs\n"}}'
@@ -233,15 +250,12 @@ fi
 kubectl rollout status deployment/prometheus --timeout=180s
 kubectl rollout status deployment/grafana --timeout=180s
 
-ARGOCD_PASSWORD="$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' 2>/dev/null | base64 -d || true)"
-
 echo
 echo "Cluster is up."
 echo "  App:         http://localhost:8080/hello-world"
 echo "  Prometheus:  http://localhost:9090"
 echo "  Grafana:     http://localhost:3000  (admin / admin)"
-echo "  Argo CD:     https://localhost:8081  (admin / ${ARGOCD_PASSWORD:-<see secret argocd-initial-admin-secret>})"
-echo "               (accept the self-signed certificate warning)"
+echo "  Argo CD:     https://localhost:8081  (admin / ${ARGOCD_PASSWORD:-<printed above when Argo CD became ready>})"
 echo
 echo "Canary demo:"
 echo "  ./infra/scripts/load.sh          # ~10 rps (keep running)"
