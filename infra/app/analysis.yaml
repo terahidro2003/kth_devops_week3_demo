@@ -9,6 +9,7 @@ spec:
     - name: hello-world-latency
       initialDelay: 5s
       interval: 1s
+      count: 45
       failureLimit: 1
       inconclusiveLimit: 20 # allow up to 20 seconds with no metrics
       # -1 = no metric yet, OK if <= 1s (p99), fail if > 1s.
