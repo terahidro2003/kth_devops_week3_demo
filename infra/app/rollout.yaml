@@ -4,6 +4,8 @@ metadata:
   name: demo
   labels:
     app: demo
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
 spec:
   replicas: 5
   selector:

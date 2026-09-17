@@ -113,7 +113,6 @@ echo "Argo CD is ready — you can log in while the rest of the stack comes up:"
 echo "  URL:   https://localhost:8081"
 echo "  User:  admin"
 echo "  Pass:  ${ARGOCD_PASSWORD:-<secret argocd-initial-admin-secret not ready yet>}"
-echo "  (accept the self-signed certificate warning)"
 echo
 
 echo "==> Ignoring AnalysisRun health in Argo CD (failed canaries otherwise leave App Degraded)..."
@@ -144,7 +143,10 @@ bootstrap_with_kubectl() {
   kubectl delete rollout demo --ignore-not-found >/dev/null 2>&1 || true
   kubectl delete deployment demo --ignore-not-found >/dev/null 2>&1 || true
   kubectl delete pods -l app=demo --ignore-not-found >/dev/null 2>&1 || true
-  kubectl apply -f "${ROOT_DIR}/infra/app"
+
+  kubectl apply -f "${ROOT_DIR}/infra/app/service.yaml"
+  kubectl apply -f "${ROOT_DIR}/infra/app/analysis.yaml"
+  kubectl apply -f "${ROOT_DIR}/infra/app/rollout.yaml"
   kubectl apply -f "${ROOT_DIR}/infra/monitoring/prometheus"
   kubectl apply -f "${ROOT_DIR}/infra/monitoring/grafana"
 }

@@ -4,6 +4,8 @@ metadata:
   name: demo
   labels:
     app: demo
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
 spec:
   type: NodePort
   selector:
@@ -20,6 +22,8 @@ metadata:
   name: demo-stable
   labels:
     app: demo
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
 spec:
   selector:
     app: demo
@@ -34,6 +38,8 @@ metadata:
   name: demo-canary
   labels:
     app: demo
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
 spec:
   selector:
     app: demo

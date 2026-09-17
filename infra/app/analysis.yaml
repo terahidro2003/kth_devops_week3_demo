@@ -2,6 +2,8 @@ apiVersion: argoproj.io/v1alpha1
 kind: AnalysisTemplate
 metadata:
   name: canary-release-analysis
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
 spec:
   args:
     - name: latest-hash
